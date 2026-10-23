@@ -6,13 +6,13 @@ from qiskit.transpiler import CouplingMap
 
 class SmartGridRouter:
     """Roteador de tráfego em grafos de acoplamento (Coupling Graphs)
-
     utilizando penalidade por congestionamento acumulado.
     """
 
     def __init__(self, coupling_map: CouplingMap, congestion_penalty: float = 0.8):
         self.coupling_map = coupling_map
-        self.graph = coupling_map.graph.to_undirected()
+        # Converte as arestas do CouplingMap diretamente num grafo do NetworkX
+        self.graph = nx.Graph(list(coupling_map.get_edges()))
         self.congestion_penalty = congestion_penalty
 
     def route(self, qc: QuantumCircuit, seed: int = 42) -> QuantumCircuit:
@@ -30,10 +30,11 @@ class SmartGridRouter:
                 q_phys1 = hardware_map[q_log1]
                 q_phys2 = hardware_map[q_log2]
 
-                # Se não forem vizinhos diretos no chip, calcula rota ponderada
+                # Se não forem vizinhos diretos no chip, calcula a rota ponderada
                 if not self.graph.has_edge(q_phys1, q_phys2):
                     for u, v in self.graph.edges():
-                        self.graph[u][v]['weight'] = edge_weights[(u, v)]
+                        edge_key = (u, v) if (u, v) in edge_weights else (v, u)
+                        self.graph[u][v]['weight'] = edge_weights.get(edge_key, 1.0)
 
                     path = nx.shortest_path(
                         self.graph, 
@@ -59,4 +60,4 @@ class SmartGridRouter:
                 routed_qc.append(inst.operation, phys_qubits, inst.clbits)
 
         return routed_qc
-      
+        
