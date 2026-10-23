@@ -1,5 +1,4 @@
 import networkx as nx
-import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import QFT
 from qiskit.transpiler import CouplingMap
@@ -18,17 +17,17 @@ def run_benchmark():
     print("=== CIRCUITO DE ENTRADA (QFT 16 Qubits) ===")
     print(f"Instruções Lógicas: {len(qc.data)} | Profundidade: {qc.depth()}\n")
 
-    # 3. Execução do Mentalist Bot (com Layout Inicial e Lookahead)
+    # 3. Execução do Mentalist Bot (com Negociação Bidirecional de Fronteira)
     bot = MentalistBot(
         coupling_map=coupling_map, 
         congestion_penalty=0.3, 
-        lookahead_window=3
+        window_size=20
     )
-    optimized_qc = bot.optimize(qc, iterations=25)
+    optimized_qc = bot.optimize(qc, iterations=10, top_k=3)
 
     swaps = optimized_qc.count_ops().get('swap', 0)
 
-    print("=== RESULTADO: MENTALIST BOT (COM LAYOUT E LOOKAHEAD) ===")
+    print("=== RESULTADO: MENTALIST BOT (NEGOCIAÇÃO DE FRONTEIRA) ===")
     print(f"SWAPs Inseridas: {swaps}")
     print(f"Instruções Finais: {len(optimized_qc.data)}")
     print(f"Profundidade Final: {optimized_qc.depth()}")
