@@ -4,31 +4,43 @@ from .rewriter import PatternRewriter
 from .router import SmartGridRouter
 from .layout import InitialLayoutSelector
 
+
 class MentalistBot:
     """Orquestrador do compilador com negociação bidirecional de fronteira
 
     (Bidirectional Boundary Negotiation) entre blocos temporais.
     """
 
-    def __init__(self, coupling_map: CouplingMap, congestion_penalty: float = 0.3, window_size: int = 20):
+    def __init__(
+        self,
+        coupling_map: CouplingMap,
+        congestion_penalty: float = 0.3,
+        window_size: int = 20,
+        lookahead_window: int | None = None,
+    ):
         self.coupling_map = coupling_map
         self.rewriter = PatternRewriter()
         self.layout_selector = InitialLayoutSelector(coupling_map)
-        self.router = SmartGridRouter(coupling_map, congestion_penalty=congestion_penalty)
         self.window_size = window_size
+        self.lookahead_window = window_size if lookahead_window is None else lookahead_window
+        self.router = SmartGridRouter(
+            coupling_map,
+            congestion_penalty=congestion_penalty,
+            lookahead_window=self.lookahead_window,
+        )
 
     def _fatiar_circuito(self, qc: QuantumCircuit) -> list[QuantumCircuit]:
         """Divide o circuito em fatias temporais menores."""
         fatias = []
         instructions = list(qc.data)
-        
+
         for i in range(0, len(instructions), self.window_size):
             bloco = instructions[i:i + self.window_size]
             sub_qc = QuantumCircuit(qc.num_qubits, qc.num_clbits)
             for inst in bloco:
                 sub_qc.append(inst.operation, inst.qubits, inst.clbits)
             fatias.append(sub_qc)
-            
+
         return fatias
 
     def _extrair_layout_final(self, circuit: QuantumCircuit, initial_layout: list[int]) -> list[int]:
@@ -53,7 +65,7 @@ class MentalistBot:
 
         for i in range(len(fatias)):
             fatia_atual = fatias[i]
-            
+
             # 1. Gera candidatos para o bloco atual
             candidatos = []
             for seed in range(iterations):
@@ -61,7 +73,7 @@ class MentalistBot:
                 cand = self.rewriter.simplify(cand)
                 cost = cand.depth() + len(cand.data)
                 candidatos.append((cost, cand))
-            
+
             candidatos.sort(key=lambda x: x[0])
             top_candidatos = candidatos[:top_k]
 
@@ -74,7 +86,7 @@ class MentalistBot:
 
                 for _, cand_atual in top_candidatos:
                     layout_saida = self._extrair_layout_final(cand_atual, current_layout)
-                    
+
                     # Teste preditivo no bloco subsequente
                     cand_proximo = self.router.route(fatia_seguinte, initial_layout=layout_saida, seed=42)
                     custo_conjunto = len(cand_atual.data) + len(cand_proximo.data)
@@ -91,4 +103,3 @@ class MentalistBot:
                 circuito_final.compose(vencedor_atual, inplace=True)
 
         return circuito_final
-        
